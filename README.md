@@ -2,12 +2,16 @@
 
 Painel web responsivo para consolidar as demandas exportadas do Microsoft Planner, com indicadores executivos, filtros, pesquisa e roadmaps expansíveis por time.
 
-## Acessar o painel
+## Publicar o painel
 
-O painel é uma página estática: abra `index.html` diretamente ou publique a raiz
-deste repositório (por exemplo, com GitHub Pages). O arquivo já inclui uma cópia dos
-dados da planilha para funcionar mesmo sem servidor. Quando publicado, ele também
-tenta carregar automaticamente `produtos-e-times.xlsx` para obter a versão mais recente.
+O painel é gerado como um site estático pelo Vite. No Cloudflare Pages, configure:
+
+- **Comando de build:** `npm run build`
+- **Diretório de saída:** `dist`
+
+O build inclui o `index.html`, os arquivos JavaScript e CSS compilados e uma cópia de
+`produtos-e-times.xlsx`. O painel também contém dados padrão para continuar funcionando
+caso a planilha publicada não possa ser carregada.
 
 ## Atualizar a planilha
 
@@ -24,6 +28,6 @@ do Planner. Para atualizar os dados publicados, basta substituir
 
 ## Desenvolvimento
 
-Depois de alterar os arquivos em `src/`, execute `npm run build`. O comando gera e
-copia `dashboard.js` e `dashboard.css` para a raiz, que são os arquivos carregados
-pelo `index.html`.
+Depois de alterar os arquivos em `src/`, execute `npm run build`. O comando gera o
+site pronto para publicação em `dist/`. Para testá-lo localmente, execute
+`npm run preview` depois do build.

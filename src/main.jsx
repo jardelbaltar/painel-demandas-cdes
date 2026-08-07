@@ -51,7 +51,7 @@ function parseWorkbook(buffer) {
     const progress = Math.min(100, Number(String(progressRaw).replace('%', '').replace(',', '.')) * (String(progressRaw).includes('%') ? 1 : Number(progressRaw) <= 1 ? 100 : 1) || 0);
     return {
       id: i + 1,
-      title: String(first(r, ['titulo', 'tarefa', 'demanda', 'title', 'nome'])).trim(),
+      title: String(first(r, ['nome da tarefa', 'nome da demanda', 'titulo', 'tarefa', 'demanda', 'title', 'nome'])).trim(),
       team: String(first(r, ['categoria', 'nome do bucket', 'bucket', 'time', 'equipe'])).trim(),
       start: dateValue(first(r, ['data de inicio', 'inicio', 'start date'])),
       end: dateValue(first(r, ['data de conclusao', 'conclusao', 'termino', 'due date', 'previsao'])),

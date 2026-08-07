@@ -7,11 +7,17 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import './styles.css';
+import defaultData from './default-data.json';
 
 const today = new Date();
 
 const norm = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-const first = (row, names) => { const key = Object.keys(row).find(k => names.some(n => norm(k).includes(n))); return key ? row[key] : ''; };
+const first = (row, names) => {
+  const keys = Object.keys(row);
+  const exact = names.map(norm).map(name => keys.find(key => norm(key) === name)).find(Boolean);
+  const key = exact || keys.find(k => names.some(n => norm(k).includes(norm(n))));
+  return key ? row[key] : '';
+};
 const dateValue = (v) => {
   if (!v) return '';
   if (typeof v === 'number') return XLSX.SSF.parse_date_code(v) ? new Date(Date.UTC(XLSX.SSF.parse_date_code(v).y, XLSX.SSF.parse_date_code(v).m - 1, XLSX.SSF.parse_date_code(v).d)).toISOString().slice(0, 10) : '';
@@ -32,7 +38,7 @@ function parseWorkbook(buffer) {
   let teams = [];
   if (bucketSheet) {
     teams = XLSX.utils.sheet_to_json(wb.Sheets[bucketSheet], { defval: '' }).map(r => ({
-      name: String(first(r, ['bucket', 'time', 'equipe', 'nome'])).trim(),
+      name: String(first(r, ['nome do bucket', 'nome', 'bucket', 'time', 'equipe'])).trim(),
       developers: Number(first(r, ['desenvolvedor', 'quantidade', 'qtd'])) || 0,
     })).filter(t => t.name);
   }
@@ -46,7 +52,7 @@ function parseWorkbook(buffer) {
     return {
       id: i + 1,
       title: String(first(r, ['titulo', 'tarefa', 'demanda', 'title', 'nome'])).trim(),
-      team: String(first(r, ['bucket', 'time', 'equipe'])).trim(),
+      team: String(first(r, ['categoria', 'nome do bucket', 'bucket', 'time', 'equipe'])).trim(),
       start: dateValue(first(r, ['data de inicio', 'inicio', 'start date'])),
       end: dateValue(first(r, ['data de conclusao', 'conclusao', 'termino', 'due date', 'previsao'])),
       status: normalizeStatus(first(r, ['status', 'andamento']), progress), progress,
@@ -94,7 +100,7 @@ function TeamCard({ team, tasks, open, onToggle }) {
 function App() {
   const [teams, setTeams] = useState([]), [tasks, setTasks] = useState([]);
   const [query, setQuery] = useState(''), [status, setStatus] = useState('Todos'), [team, setTeam] = useState('Todos');
-  const [open, setOpen] = useState(new Set()), [source, setSource] = useState('Carregando planilha…');
+  const [open, setOpen] = useState(new Set()), [source, setSource] = useState('Dados incluídos no painel');
   const input = useRef();
   const applyWorkbook = (buffer, fileName) => {
     const data = parseWorkbook(buffer);
@@ -103,12 +109,14 @@ function App() {
     setOpen(new Set(data.teams.slice(0, 1).map(t => t.name)));
   };
   useEffect(() => {
+    setTeams(defaultData.teams); setTasks(defaultData.tasks);
+    setOpen(new Set(defaultData.teams.slice(0, 1).map(t => t.name)));
     fetch('./produtos-e-times.xlsx')
       .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.arrayBuffer(); })
       .then(buffer => applyWorkbook(buffer, 'produtos-e-times.xlsx'))
       .catch(error => {
         console.error('Falha ao carregar a planilha publicada:', error);
-        setSource('Planilha indisponível');
+        setSource('Dados incluídos no painel');
       });
   }, []);
   const filtered = useMemo(() => tasks.filter(t => (team === 'Todos' || t.team === team) && (status === 'Todos' || (status === 'Atrasadas' ? isLate(t) : t.status === status && !isLate(t))) && norm(t.title).includes(norm(query))), [tasks, query, status, team]);

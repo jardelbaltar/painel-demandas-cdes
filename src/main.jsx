@@ -1,10 +1,12 @@
-const { useEffect, useMemo, useRef, useState } = React;
-const { createRoot } = ReactDOM;
-const {
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
   Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2,
   ChevronDown, ChevronRight, CircleDot, Clock3, FileSpreadsheet,
   LayoutDashboard, Search, SlidersHorizontal, Sparkles, Users, X
-} = lucideReact;
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
+import './styles.css';
 
 const today = new Date();
 

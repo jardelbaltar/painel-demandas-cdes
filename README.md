@@ -4,10 +4,10 @@ Painel web responsivo para consolidar as demandas exportadas do Microsoft Planne
 
 ## Acessar o painel
 
-O painel é uma página estática: publique a raiz deste repositório (por exemplo, com
-GitHub Pages) e acesse `index.html`. Ao abrir, a página carrega automaticamente o
-arquivo `produtos-e-times.xlsx` que está na mesma pasta, sem exigir instalação,
-build ou servidor de desenvolvimento.
+O painel é uma página estática: abra `index.html` diretamente ou publique a raiz
+deste repositório (por exemplo, com GitHub Pages). O arquivo já inclui uma cópia dos
+dados da planilha para funcionar mesmo sem servidor. Quando publicado, ele também
+tenta carregar automaticamente `produtos-e-times.xlsx` para obter a versão mais recente.
 
 ## Atualizar a planilha
 
@@ -20,3 +20,10 @@ arquivo sem alterar o publicado, use o botão **Importar Excel**. O painel procu
 Os nomes das colunas podem estar em português ou seguir os nomes comuns da exportação
 do Planner. Para atualizar os dados publicados, basta substituir
 `produtos-e-times.xlsx` por uma nova exportação com o mesmo nome.
+
+
+## Desenvolvimento
+
+Depois de alterar os arquivos em `src/`, execute `npm run build`. O comando gera e
+copia `dashboard.js` e `dashboard.css` para a raiz, que são os arquivos carregados
+pelo `index.html`.

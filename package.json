@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && cp dist/dashboard.js dist/dashboard.css .",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
@@ -13,7 +13,8 @@
     "react": "latest",
     "react-dom": "latest",
     "lucide-react": "latest",
-    "xlsx": "latest"
+    "xlsx": "latest",
+    "@vitejs/plugin-react": "latest"
   },
   "devDependencies": {}
 }

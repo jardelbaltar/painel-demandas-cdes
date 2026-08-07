@@ -1,38 +1,12 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
-import * as XLSX from 'xlsx';
-import {
+const { useEffect, useMemo, useRef, useState } = React;
+const { createRoot } = ReactDOM;
+const {
   Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2,
   ChevronDown, ChevronRight, CircleDot, Clock3, FileSpreadsheet,
   LayoutDashboard, Search, SlidersHorizontal, Sparkles, Users, X
-} from 'lucide-react';
-import './styles.css';
+} = lucideReact;
 
 const today = new Date();
-const iso = (offset) => { const d = new Date(today); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
-
-const DEMO_TEAMS = [
-  { name: 'Produtos Digitais', developers: 7 },
-  { name: 'Dados & Analytics', developers: 5 },
-  { name: 'Plataformas', developers: 6 },
-  { name: 'Experiência do Cliente', developers: 4 },
-];
-const DEMO_TASKS = [
-  ['Novo Portal de Serviços', 'Produtos Digitais', -24, 18, 'Em execução', 62, 'Alta'],
-  ['Jornada de autenticação', 'Produtos Digitais', -14, -2, 'Em execução', 78, 'Crítica'],
-  ['Catálogo unificado', 'Produtos Digitais', 10, 42, 'Planejada', 0, 'Média'],
-  ['Melhoria no checkout', 'Produtos Digitais', -42, -9, 'Concluída', 100, 'Alta'],
-  ['Painel de indicadores', 'Dados & Analytics', -8, 27, 'Em execução', 46, 'Alta'],
-  ['Qualidade da base cadastral', 'Dados & Analytics', -30, 6, 'Em execução', 82, 'Média'],
-  ['Modelo de segmentação', 'Dados & Analytics', 18, 53, 'Planejada', 0, 'Média'],
-  ['Migração do data lake', 'Plataformas', -62, -7, 'Em execução', 91, 'Crítica'],
-  ['Atualização de APIs legadas', 'Plataformas', -5, 39, 'Em execução', 34, 'Alta'],
-  ['Observabilidade de serviços', 'Plataformas', 8, 35, 'Planejada', 0, 'Alta'],
-  ['Esteira de CI/CD', 'Plataformas', -53, -12, 'Concluída', 100, 'Média'],
-  ['Pesquisa de satisfação', 'Experiência do Cliente', -20, 4, 'Em execução', 72, 'Alta'],
-  ['Central de ajuda', 'Experiência do Cliente', 12, 48, 'Planejada', 0, 'Média'],
-  ['Revisão da jornada mobile', 'Experiência do Cliente', -39, -5, 'Concluída', 100, 'Alta'],
-].map((x, i) => ({ id: i + 1, title: x[0], team: x[1], start: iso(x[2]), end: iso(x[3]), status: x[4], progress: x[5], priority: x[6] }));
 
 const norm = (v) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const first = (row, names) => { const key = Object.keys(row).find(k => names.some(n => norm(k).includes(n))); return key ? row[key] : ''; };
@@ -60,7 +34,9 @@ function parseWorkbook(buffer) {
       developers: Number(first(r, ['desenvolvedor', 'quantidade', 'qtd'])) || 0,
     })).filter(t => t.name);
   }
-  const candidate = wb.SheetNames.find(n => n !== bucketSheet) || wb.SheetNames[0];
+  const candidate = wb.SheetNames.find(n => norm(n).includes('dados consolidados'))
+    || wb.SheetNames.find(n => norm(n) === 'tarefas')
+    || wb.SheetNames.find(n => n !== bucketSheet);
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[candidate], { defval: '', raw: true });
   const tasks = rows.map((r, i) => {
     const progressRaw = first(r, ['progresso', 'percentual', '% conclu', 'conclusao %']);
@@ -114,10 +90,25 @@ function TeamCard({ team, tasks, open, onToggle }) {
 }
 
 function App() {
-  const [teams, setTeams] = useState(DEMO_TEAMS), [tasks, setTasks] = useState(DEMO_TASKS);
+  const [teams, setTeams] = useState([]), [tasks, setTasks] = useState([]);
   const [query, setQuery] = useState(''), [status, setStatus] = useState('Todos'), [team, setTeam] = useState('Todos');
-  const [open, setOpen] = useState(new Set([DEMO_TEAMS[0].name])), [source, setSource] = useState('Dados de demonstração');
+  const [open, setOpen] = useState(new Set()), [source, setSource] = useState('Carregando planilha…');
   const input = useRef();
+  const applyWorkbook = (buffer, fileName) => {
+    const data = parseWorkbook(buffer);
+    if (!data.tasks.length) throw new Error('Nenhuma demanda encontrada');
+    setTeams(data.teams); setTasks(data.tasks); setSource(fileName);
+    setOpen(new Set(data.teams.slice(0, 1).map(t => t.name)));
+  };
+  useEffect(() => {
+    fetch('./produtos-e-times.xlsx')
+      .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.arrayBuffer(); })
+      .then(buffer => applyWorkbook(buffer, 'produtos-e-times.xlsx'))
+      .catch(error => {
+        console.error('Falha ao carregar a planilha publicada:', error);
+        setSource('Planilha indisponível');
+      });
+  }, []);
   const filtered = useMemo(() => tasks.filter(t => (team === 'Todos' || t.team === team) && (status === 'Todos' || (status === 'Atrasadas' ? isLate(t) : t.status === status && !isLate(t))) && norm(t.title).includes(norm(query))), [tasks, query, status, team]);
   const stats = [
     ['Total de demandas', filtered.length, LayoutDashboard, 'blue'],
@@ -126,7 +117,7 @@ function App() {
     ['Atrasadas', filtered.filter(isLate).length, AlertTriangle, 'red'],
     ['Planejadas', filtered.filter(t=>t.status==='Planejada'&&!isLate(t)).length, Clock3, 'amber'],
   ];
-  const load = async e => { const file=e.target.files?.[0]; if(!file)return; try { const data=parseWorkbook(await file.arrayBuffer()); if(!data.tasks.length) throw new Error('Nenhuma demanda encontrada'); setTeams(data.teams);setTasks(data.tasks);setSource(file.name);setOpen(new Set(data.teams.slice(0,1).map(t=>t.name))); } catch(err) { alert(`Não foi possível ler a planilha: ${err.message}`); } e.target.value=''; };
+  const load = async e => { const file=e.target.files?.[0]; if(!file)return; try { applyWorkbook(await file.arrayBuffer(), file.name); } catch(err) { alert(`Não foi possível ler a planilha: ${err.message}`); } e.target.value=''; };
   const clear = () => { setQuery(''); setStatus('Todos'); setTeam('Todos'); };
   const visibleTeams = teams.filter(t => team === 'Todos' || t.name === team).filter(t => filtered.some(d => d.team === t.name));
   return <div className="app">

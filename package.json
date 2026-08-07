@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build && cp dist/dashboard.js dist/dashboard.css .",
+    "build": "vite build && cp produtos-e-times.xlsx dist/",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

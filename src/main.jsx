@@ -35,6 +35,11 @@ const highlightedLabel = (value) => String(value ?? '').split(/[;,|]/)
   .find(label => ['suspensa', 'em homologacao'].includes(norm(label))) || '';
 const isLate = (t) => t.status !== 'Concluída' && t.end && new Date(`${t.end}T23:59:59`) < today;
 const fmt = (v) => v ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${v}T12:00:00`)).replace('.', '') : 'Sem data';
+const detailValue = (value) => {
+  if (value instanceof Date) return new Intl.DateTimeFormat('pt-BR').format(value);
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  return String(value ?? '').trim();
+};
 
 function parseWorkbook(buffer) {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
@@ -62,6 +67,7 @@ function parseWorkbook(buffer) {
       status: normalizeStatus(first(r, ['status', 'andamento']), progress), progress,
       priority: String(first(r, ['prioridade', 'priority'])) || 'Não informada',
       highlightedLabel: highlightedLabel(first(r, ['rotulos', 'rotulo', 'labels', 'label'])),
+      details: Object.entries(r).map(([label, value]) => ({ label, value: detailValue(value) })).filter(detail => detail.value),
     };
   }).filter(t => t.title && t.team);
   if (!teams.length) teams = [...new Set(tasks.map(t => t.team))].map(name => ({ name, developers: 0 }));
@@ -73,7 +79,33 @@ const StatusBadge = ({ task }) => {
   return <span className={`status ${late ? 'late' : norm(task.status).replace(' ', '-')}`}><i />{label}</span>;
 };
 
-function TeamCard({ team, tasks, open, onToggle }) {
+function DemandModal({ task, onClose }) {
+  const dialog = useRef(null);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = event => event.key === 'Escape' && onClose();
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    dialog.current?.focus();
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKeyDown); };
+  }, [onClose]);
+  const details = task.details?.length ? task.details : [
+    { label: 'Time responsável', value: task.team }, { label: 'Status', value: isLate(task) ? 'Atrasada' : task.status },
+    { label: 'Prioridade', value: task.priority }, { label: 'Progresso', value: `${task.progress}%` },
+    { label: 'Data de início', value: fmt(task.start) }, { label: 'Data de conclusão', value: fmt(task.end) },
+    ...(task.highlightedLabel ? [{ label: 'Rótulo', value: task.highlightedLabel }] : []),
+  ];
+  return <div className="modal-backdrop" onMouseDown={onClose} role="presentation">
+    <section className="demand-modal" role="dialog" aria-modal="true" aria-labelledby="demand-modal-title" tabIndex={-1} ref={dialog} onMouseDown={event => event.stopPropagation()}>
+      <div className="modal-heading"><span>DETALHES DA DEMANDA</span><h2 id="demand-modal-title">{task.title}</h2><p>{task.team}</p></div>
+      <div className="modal-summary"><StatusBadge task={task}/><span className="modal-progress"><i style={{ width: `${task.progress}%` }}/></span><strong>{task.progress}%</strong></div>
+      <div className="detail-grid">{details.map((detail, index) => <div className="detail-item" key={`${detail.label}-${index}`}><span>{detail.label}</span><strong>{detail.value}</strong></div>)}</div>
+      <p className="modal-hint">Clique fora desta janela para fechar</p>
+    </section>
+  </div>;
+}
+
+function TeamCard({ team, tasks, open, onToggle, onSelectTask }) {
   const counts = { planned: tasks.filter(t => t.status === 'Planejada' && !isLate(t)).length, active: tasks.filter(t => t.status === 'Em execução' && !isLate(t)).length, late: tasks.filter(isLate).length, done: tasks.filter(t => t.status === 'Concluída').length };
   const dated = tasks.filter(t => t.start && t.end);
   const min = dated.length ? Math.min(...dated.map(t => new Date(t.start))) : +today;
@@ -95,7 +127,7 @@ function TeamCard({ team, tasks, open, onToggle }) {
         {tasks.map(task => {
           const left = task.start ? Math.max(0, (new Date(task.start)-min)/span*100) : 0;
           const width = task.end && task.start ? Math.max(3, (new Date(task.end)-new Date(task.start))/span*100) : 3;
-          return <div className="timeline-row" key={task.id}><div className="task-name"><strong>{task.title}</strong>{task.highlightedLabel && <span className={`task-label ${norm(task.highlightedLabel)}`}>{task.highlightedLabel}</span>}<small>{task.priority}</small></div><div className="track"><span className="today" style={{left:`${Math.max(0, Math.min(100,(today-min)/span*100))}%`}}/><span className={`bar ${isLate(task)?'late':norm(task.status)}`} style={{left:`${left}%`,width:`${Math.min(width,100-left)}%`}}><i style={{width:`${task.progress}%`}}/></span></div><StatusBadge task={task}/></div>
+          return <div className="timeline-row" key={task.id}><div className="task-name"><button className="task-title" onClick={() => onSelectTask(task)}>{task.title}</button>{task.highlightedLabel && <span className={`task-label ${norm(task.highlightedLabel)}`}>{task.highlightedLabel}</span>}<small>{task.priority}</small></div><div className="track"><span className="today" style={{left:`${Math.max(0, Math.min(100,(today-min)/span*100))}%`}}/><span className={`bar ${isLate(task)?'late':norm(task.status)}`} style={{left:`${left}%`,width:`${Math.min(width,100-left)}%`}}><i style={{width:`${task.progress}%`}}/></span></div><StatusBadge task={task}/></div>
         })}
       </div>
     </div>}
@@ -106,6 +138,7 @@ function App() {
   const [teams, setTeams] = useState([]), [tasks, setTasks] = useState([]);
   const [query, setQuery] = useState(''), [status, setStatus] = useState('Todos'), [team, setTeam] = useState('Todos');
   const [open, setOpen] = useState(new Set()), [source, setSource] = useState('Dados incluídos no painel');
+  const [selectedTask, setSelectedTask] = useState(null);
   const input = useRef();
   const applyWorkbook = (buffer, fileName) => {
     const data = parseWorkbook(buffer);
@@ -147,9 +180,9 @@ function App() {
       </section>
       <section className="stats">{stats.map(([label,value,Icon,color])=><div className="stat" key={label}><div className={`stat-icon ${color}`}><Icon/></div><div><span>{label}</span><strong>{value}</strong></div>{label==='Atrasadas'&&value>0&&<em>Requer atenção</em>}</div>)}</section>
       <section className="teams-section"><div className="section-title"><div><h2>Visão por time</h2><p>{visibleTeams.length} times com demandas no período</p></div><button onClick={()=>setOpen(open.size===visibleTeams.length?new Set():new Set(visibleTeams.map(t=>t.name)))}>{open.size===visibleTeams.length?'Recolher todos':'Expandir todos'}</button></div>
-        <div className="team-list">{visibleTeams.map(t=><TeamCard key={t.name} team={t} tasks={filtered.filter(d=>d.team===t.name)} open={open.has(t.name)} onToggle={()=>setOpen(s=>{const n=new Set(s);n.has(t.name)?n.delete(t.name):n.add(t.name);return n;})}/>)}{!visibleTeams.length&&<div className="empty"><Search/><h3>Nenhuma demanda encontrada</h3><p>Tente ajustar os filtros ou a pesquisa.</p><button onClick={clear}>Limpar filtros</button></div>}</div>
+        <div className="team-list">{visibleTeams.map(t=><TeamCard key={t.name} team={t} tasks={filtered.filter(d=>d.team===t.name)} open={open.has(t.name)} onSelectTask={setSelectedTask} onToggle={()=>setOpen(s=>{const n=new Set(s);n.has(t.name)?n.delete(t.name):n.add(t.name);return n;})}/>)}{!visibleTeams.length&&<div className="empty"><Search/><h3>Nenhuma demanda encontrada</h3><p>Tente ajustar os filtros ou a pesquisa.</p><button onClick={clear}>Limpar filtros</button></div>}</div>
       </section>
-    </main><footer>CDES · Gestão de Portfólio <span>•</span> Dados consolidados do Microsoft Planner</footer>
+    </main><footer>CDES · Gestão de Portfólio <span>•</span> Dados consolidados do Microsoft Planner</footer>{selectedTask && <DemandModal task={selectedTask} onClose={() => setSelectedTask(null)}/>}
   </div>;
 }
 

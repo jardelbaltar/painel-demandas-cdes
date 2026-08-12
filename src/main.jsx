@@ -30,6 +30,9 @@ const normalizeStatus = (value, progress) => {
   if (s.includes('exec') || s.includes('andamento') || s.includes('progres') || s.includes('iniciad')) return 'Em execução';
   return 'Planejada';
 };
+const highlightedLabel = (value) => String(value ?? '').split(/[;,|]/)
+  .map(label => label.trim())
+  .find(label => ['suspensa', 'em homologacao'].includes(norm(label))) || '';
 const isLate = (t) => t.status !== 'Concluída' && t.end && new Date(`${t.end}T23:59:59`) < today;
 const fmt = (v) => v ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${v}T12:00:00`)).replace('.', '') : 'Sem data';
 
@@ -58,6 +61,7 @@ function parseWorkbook(buffer) {
       end: dateValue(first(r, ['data de conclusao', 'conclusao', 'termino', 'due date', 'previsao'])),
       status: normalizeStatus(first(r, ['status', 'andamento']), progress), progress,
       priority: String(first(r, ['prioridade', 'priority'])) || 'Não informada',
+      highlightedLabel: highlightedLabel(first(r, ['rotulos', 'rotulo', 'labels', 'label'])),
     };
   }).filter(t => t.title && t.team);
   if (!teams.length) teams = [...new Set(tasks.map(t => t.team))].map(name => ({ name, developers: 0 }));
@@ -91,7 +95,7 @@ function TeamCard({ team, tasks, open, onToggle }) {
         {tasks.map(task => {
           const left = task.start ? Math.max(0, (new Date(task.start)-min)/span*100) : 0;
           const width = task.end && task.start ? Math.max(3, (new Date(task.end)-new Date(task.start))/span*100) : 3;
-          return <div className="timeline-row" key={task.id}><div className="task-name"><strong>{task.title}</strong><small>{task.priority}</small></div><div className="track"><span className="today" style={{left:`${Math.max(0, Math.min(100,(today-min)/span*100))}%`}}/><span className={`bar ${isLate(task)?'late':norm(task.status)}`} style={{left:`${left}%`,width:`${Math.min(width,100-left)}%`}}><i style={{width:`${task.progress}%`}}/></span></div><StatusBadge task={task}/></div>
+          return <div className="timeline-row" key={task.id}><div className="task-name"><strong>{task.title}</strong>{task.highlightedLabel && <span className={`task-label ${norm(task.highlightedLabel)}`}>{task.highlightedLabel}</span>}<small>{task.priority}</small></div><div className="track"><span className="today" style={{left:`${Math.max(0, Math.min(100,(today-min)/span*100))}%`}}/><span className={`bar ${isLate(task)?'late':norm(task.status)}`} style={{left:`${left}%`,width:`${Math.min(width,100-left)}%`}}><i style={{width:`${task.progress}%`}}/></span></div><StatusBadge task={task}/></div>
         })}
       </div>
     </div>}

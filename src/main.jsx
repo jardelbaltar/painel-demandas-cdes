@@ -26,6 +26,7 @@ const dateValue = (v) => {
 const normalizeStatus = (value, progress) => {
   const s = norm(value);
   if (s.includes('conclu') || s.includes('complete') || Number(progress) >= 100) return 'Concluída';
+  if (s.includes('nao iniciad')) return 'Planejada';
   if (s.includes('exec') || s.includes('andamento') || s.includes('progres') || s.includes('iniciad')) return 'Em execução';
   return 'Planejada';
 };

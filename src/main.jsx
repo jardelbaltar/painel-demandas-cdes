@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client';
 import {
   Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2,
   ChevronDown, ChevronRight, CircleDot, Clock3, FileSpreadsheet,
-  LayoutDashboard, Search, SlidersHorizontal, Sparkles, Users, X
+  LayoutDashboard, LogIn, RefreshCw, Search, SlidersHorizontal, Sparkles, Users, X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import './styles.css';
 import defaultData from './default-data.json';
+import { isPlannerConfigured, loadPlanner, parseBucketName } from './planner.js';
 
 const today = new Date();
 
@@ -46,10 +47,10 @@ function parseWorkbook(buffer) {
   const bucketSheet = wb.SheetNames.find(n => norm(n).includes('bucket'));
   let teams = [];
   if (bucketSheet) {
-    teams = XLSX.utils.sheet_to_json(wb.Sheets[bucketSheet], { defval: '' }).map(r => ({
-      name: String(first(r, ['nome do bucket', 'nome', 'bucket', 'time', 'equipe'])).trim(),
-      developers: Number(first(r, ['desenvolvedor', 'quantidade', 'qtd'])) || 0,
-    })).filter(t => t.name);
+    teams = XLSX.utils.sheet_to_json(wb.Sheets[bucketSheet], { defval: '' }).map(r => {
+      const parsed = parseBucketName(first(r, ['nome do bucket', 'nome', 'bucket', 'time', 'equipe']));
+      return { ...parsed, developers: Number(first(r, ['desenvolvedor', 'quantidade', 'qtd'])) || parsed.developers };
+    }).filter(t => t.name);
   }
   const candidate = wb.SheetNames.find(n => norm(n).includes('dados consolidados'))
     || wb.SheetNames.find(n => norm(n) === 'tarefas')
@@ -61,7 +62,7 @@ function parseWorkbook(buffer) {
     return {
       id: i + 1,
       title: String(first(r, ['nome da tarefa', 'nome da demanda', 'titulo', 'tarefa', 'demanda', 'title', 'nome'])).trim(),
-      team: String(first(r, ['categoria', 'nome do bucket', 'bucket', 'time', 'equipe'])).trim(),
+      team: parseBucketName(first(r, ['categoria', 'nome do bucket', 'bucket', 'time', 'equipe'])).name,
       start: dateValue(first(r, ['data de inicio', 'inicio', 'start date'])),
       end: dateValue(first(r, ['data de conclusao', 'conclusao', 'termino', 'due date', 'previsao'])),
       status: normalizeStatus(first(r, ['status', 'andamento']), progress), progress,
@@ -137,26 +138,45 @@ function TeamCard({ team, tasks, open, onToggle, onSelectTask }) {
 function App() {
   const [teams, setTeams] = useState([]), [tasks, setTasks] = useState([]);
   const [query, setQuery] = useState(''), [status, setStatus] = useState('Todos'), [team, setTeam] = useState('Todos');
-  const [open, setOpen] = useState(new Set()), [source, setSource] = useState('Dados incluídos no painel');
+  const [open, setOpen] = useState(new Set());
+  const [dataSource, setDataSource] = useState({ type: 'loading', label: 'Carregando dados…', detail: '' });
+  const [syncing, setSyncing] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const input = useRef();
   const applyWorkbook = (buffer, fileName) => {
     const data = parseWorkbook(buffer);
     if (!data.tasks.length) throw new Error('Nenhuma demanda encontrada');
-    setTeams(data.teams); setTasks(data.tasks); setSource(fileName);
+    setTeams(data.teams); setTasks(data.tasks);
+    setDataSource({ type: 'spreadsheet', label: 'Planilha', detail: fileName });
     setOpen(new Set(data.teams.slice(0, 1).map(t => t.name)));
   };
-  useEffect(() => {
-    setTeams(defaultData.teams); setTasks(defaultData.tasks);
-    setOpen(new Set(defaultData.teams.slice(0, 1).map(t => t.name)));
-    fetch('./produtos-e-times.xlsx')
-      .then(response => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.arrayBuffer(); })
-      .then(buffer => applyWorkbook(buffer, 'produtos-e-times.xlsx'))
-      .catch(error => {
-        console.error('Falha ao carregar a planilha publicada:', error);
-        setSource('Dados incluídos no painel');
-      });
-  }, []);
+  const loadSpreadsheetFallback = async plannerError => {
+    try {
+      const response = await fetch('./produtos-e-times.xlsx');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      applyWorkbook(await response.arrayBuffer(), 'produtos-e-times.xlsx');
+      setDataSource({ type: 'fallback', label: 'Planilha (modo contingência)', detail: plannerError });
+    } catch (error) {
+      console.error('Falha ao carregar a planilha publicada:', error);
+      setTeams(defaultData.teams); setTasks(defaultData.tasks);
+      setOpen(new Set(defaultData.teams.slice(0, 1).map(t => t.name)));
+      setDataSource({ type: 'fallback', label: 'Dados incluídos no painel', detail: plannerError });
+    }
+  };
+  const syncPlanner = async interactive => {
+    setSyncing(true);
+    try {
+      const data = await loadPlanner({ interactive });
+      setTeams(data.teams); setTasks(data.tasks);
+      setOpen(new Set(data.teams.slice(0, 1).map(t => t.name)));
+      setDataSource({ type: 'planner', label: 'Sincronizado com o Planner', detail: `${data.account?.name || data.account?.preferred_username || 'Usuário Microsoft'} · ${data.syncedAt.toLocaleString('pt-BR')}` });
+    } catch (error) {
+      console.warn('Não foi possível sincronizar com o Planner:', error);
+      const reason = !isPlannerConfigured() ? 'Integração Microsoft não configurada' : 'Autenticação ou acesso ao plano indisponível';
+      await loadSpreadsheetFallback(reason);
+    } finally { setSyncing(false); }
+  };
+  useEffect(() => { syncPlanner(false); }, []);
   const filtered = useMemo(() => tasks.filter(t => (team === 'Todos' || t.team === team) && (status === 'Todos' || (status === 'Atrasadas' ? isLate(t) : t.status === status && !isLate(t))) && norm(t.title).includes(norm(query))), [tasks, query, status, team]);
   const stats = [
     ['Total de demandas', filtered.length, LayoutDashboard, 'blue'],
@@ -169,9 +189,9 @@ function App() {
   const clear = () => { setQuery(''); setStatus('Todos'); setTeam('Todos'); };
   const visibleTeams = teams.filter(t => team === 'Todos' || t.name === team).filter(t => filtered.some(d => d.team === t.name));
   return <div className="app">
-    <header><div className="brand"><div className="brand-mark"><BarChart3/></div><div><strong>CDES</strong><span>Painel de Demandas</span></div></div><div className="header-right"><span className="updated"><CircleDot size={14}/> Atualizado agora</span><button className="import" onClick={()=>input.current.click()}><FileSpreadsheet size={17}/> Importar Excel</button><input ref={input} type="file" accept=".xlsx,.xls" hidden onChange={load}/><div className="avatar">GE</div></div></header>
+    <header><div className="brand"><div className="brand-mark"><BarChart3/></div><div><strong>CDES</strong><span>Painel de Demandas</span></div></div><div className="header-right"><button className="sync-button" onClick={()=>syncPlanner(true)} disabled={syncing || !isPlannerConfigured()}>{syncing ? <RefreshCw className="spinning" size={17}/> : <LogIn size={17}/>} {syncing ? 'Sincronizando…' : 'Conectar ao Planner'}</button><button className="import" onClick={()=>input.current.click()}><FileSpreadsheet size={17}/> Importar Excel</button><input ref={input} type="file" accept=".xlsx,.xls" hidden onChange={load}/><div className="avatar">GE</div></div></header>
     <main>
-      <section className="hero"><div><div className="eyebrow"><Sparkles size={14}/> VISÃO EXECUTIVA</div><h1>Painel de Demandas</h1><p>Acompanhe o portfólio, identifique riscos e veja a evolução de cada time.</p></div><div className="source"><span>Fonte de dados</span><strong><FileSpreadsheet size={16}/>{source}</strong></div></section>
+      <section className="hero"><div><div className="eyebrow"><Sparkles size={14}/> VISÃO EXECUTIVA</div><h1>Painel de Demandas</h1><p>Acompanhe o portfólio, identifique riscos e veja a evolução de cada time.</p></div><div className={`source ${dataSource.type}`}><span>Fonte de dados</span><strong>{dataSource.type === 'planner' ? <CircleDot size={16}/> : <FileSpreadsheet size={16}/>} {dataSource.label}</strong>{dataSource.detail && <small>{dataSource.detail}</small>}</div></section>
       <section className="filters">
         <label className="search"><Search size={19}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar por demanda..." />{query&&<button onClick={()=>setQuery('')}><X size={16}/></button>}</label>
         <label><Users size={17}/><select value={team} onChange={e=>setTeam(e.target.value)}><option>Todos</option>{teams.map(t=><option key={t.name}>{t.name}</option>)}</select></label>

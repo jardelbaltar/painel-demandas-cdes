@@ -1,6 +1,22 @@
 # Painel Executivo de Demandas — CDES
 
-Painel web responsivo para consolidar as demandas exportadas do Microsoft Planner, com indicadores executivos, filtros, pesquisa e roadmaps expansíveis por time.
+Painel web responsivo para consolidar as demandas do Microsoft Planner, com autenticação delegada do usuário, fallback para Excel, indicadores executivos, filtros, pesquisa e roadmaps expansíveis por time.
+
+## Integração com o Microsoft Planner
+
+O painel tenta reutilizar silenciosamente a sessão Microsoft do usuário. Quando não há uma sessão válida, ele carrega `produtos-e-times.xlsx` em modo de contingência e oferece o botão **Conectar ao Planner**. Somente usuários que conseguirem entrar no tenant e tiverem acesso ao plano verão os dados sincronizados. A fonte ativa fica sempre identificada no topo do painel.
+
+Crie um registro de aplicativo do tipo **Single-page application (SPA)** no Microsoft Entra ID, cadastre as URLs de produção e desenvolvimento como redirect URIs e conceda as permissões delegadas Microsoft Graph `User.Read`, `Tasks.Read` e `Group.Read.All`. Depois, configure no ambiente de build:
+
+```env
+VITE_MICROSOFT_CLIENT_ID=id-do-aplicativo
+VITE_MICROSOFT_TENANT_ID=de23d5f0-ccac-4c84-81d6-2892a8c055aa
+VITE_PLANNER_PLAN_ID=_IFjpmPlW02Q7eVsII-VQmQADmgL
+```
+
+Não configure client secret: a autenticação SPA usa as credenciais e permissões do próprio usuário com Authorization Code + PKCE. Variáveis `VITE_*` são públicas no bundle e devem conter apenas identificadores não secretos.
+
+Buckets com o padrão `Nome do time - N`, por exemplo `Julgamento - 3`, são apresentados como time **Julgamento** com **3 desenvolvedores**.
 
 ## Publicar o painel
 

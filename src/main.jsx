@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2,
-  ChevronDown, ChevronRight, CircleDot, Clock3, FileSpreadsheet,
+  Check, ChevronDown, ChevronRight, CircleDot, Clock3, FileSpreadsheet,
   LayoutDashboard, LogIn, RefreshCw, Search, SlidersHorizontal, Sparkles, Users, X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -36,10 +36,23 @@ const highlightedLabel = (value) => String(value ?? '').split(/[;,|]/)
   .find(label => ['suspensa', 'em homologacao'].includes(norm(label))) || '';
 const isLate = (t) => t.status !== 'Concluída' && t.end && new Date(`${t.end}T23:59:59`) < today;
 const fmt = (v) => v ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${v}T12:00:00`)).replace('.', '') : 'Sem data';
-const detailValue = (value) => {
-  if (value instanceof Date) return new Intl.DateTimeFormat('pt-BR').format(value);
+const numericDate = value => {
+  if (value instanceof Date) return value;
+  const match = String(value ?? '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+};
+const detailValue = (label, value) => {
+  const date = numericDate(value);
+  if (date && (value instanceof Date || ['data', 'criado em', 'concluido em'].some(name => norm(label).includes(name)))) {
+    return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  }
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   return String(value ?? '').trim();
+};
+const checklistItems = (value, completedValue) => {
+  const completedCount = Number(String(completedValue ?? '').match(/^\s*(\d+)/)?.[1]) || 0;
+  return String(value ?? '').split(/[;\n]+/).map(title => title.trim()).filter(Boolean)
+    .map((title, index) => ({ title, completed: index < completedCount }));
 };
 
 function parseWorkbook(buffer) {
@@ -68,7 +81,8 @@ function parseWorkbook(buffer) {
       status: normalizeStatus(first(r, ['status', 'andamento']), progress), progress,
       priority: String(first(r, ['prioridade', 'priority'])) || 'Não informada',
       highlightedLabel: highlightedLabel(first(r, ['rotulos', 'rotulo', 'labels', 'label'])),
-      details: Object.entries(r).map(([label, value]) => ({ label, value: detailValue(value) })).filter(detail => detail.value),
+      checklist: checklistItems(first(r, ['itens da lista de verificacao']), first(r, ['itens concluidos da lista de verificacao'])),
+      details: Object.entries(r).map(([label, value]) => ({ label, value: detailValue(label, value) })).filter(detail => detail.value),
     };
   }).filter(t => t.title && t.team);
   if (!teams.length) teams = [...new Set(tasks.map(t => t.team))].map(name => ({ name, developers: 0 }));
@@ -90,17 +104,20 @@ function DemandModal({ task, onClose }) {
     dialog.current?.focus();
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKeyDown); };
   }, [onClose]);
-  const details = task.details?.length ? task.details : [
+  const hiddenDetails = new Set(['identificacao da tarefa', 'categoria', 'itens concluidos da lista de verificacao', 'atrasados', 'itens da lista de verificacao']);
+  const details = (task.details?.length ? task.details : [
     { label: 'Time responsável', value: task.team }, { label: 'Status', value: isLate(task) ? 'Atrasada' : task.status },
     { label: 'Prioridade', value: task.priority }, { label: 'Progresso', value: `${task.progress}%` },
-    { label: 'Data de início', value: fmt(task.start) }, { label: 'Data de conclusão', value: fmt(task.end) },
+    { label: 'Data de início', value: task.start ? detailValue('Data de início', task.start) : 'Sem data' },
+    { label: 'Data de conclusão', value: task.end ? detailValue('Data de conclusão', task.end) : 'Sem data' },
     ...(task.highlightedLabel ? [{ label: 'Rótulo', value: task.highlightedLabel }] : []),
-  ];
+  ]).filter(detail => !hiddenDetails.has(norm(detail.label)));
   return <div className="modal-backdrop" onMouseDown={onClose} role="presentation">
     <section className="demand-modal" role="dialog" aria-modal="true" aria-labelledby="demand-modal-title" tabIndex={-1} ref={dialog} onMouseDown={event => event.stopPropagation()}>
       <div className="modal-heading"><span>DETALHES DA DEMANDA</span><h2 id="demand-modal-title">{task.title}</h2><p>{task.team}</p></div>
       <div className="modal-summary"><StatusBadge task={task}/><span className="modal-progress"><i style={{ width: `${task.progress}%` }}/></span><strong>{task.progress}%</strong></div>
       <div className="detail-grid">{details.map((detail, index) => <div className="detail-item" key={`${detail.label}-${index}`}><span>{detail.label}</span><strong>{detail.value}</strong></div>)}</div>
+      {task.checklist?.length > 0 && <section className="modal-checklist"><h3>Lista de verificação</h3><ul>{task.checklist.map((item, index) => <li className={item.completed ? 'completed' : ''} key={`${item.title}-${index}`}><span className="checklist-icon">{item.completed && <Check size={14} strokeWidth={3}/>}</span><span>{item.title}</span></li>)}</ul></section>}
       <p className="modal-hint">Clique fora desta janela para fechar</p>
     </section>
   </div>;

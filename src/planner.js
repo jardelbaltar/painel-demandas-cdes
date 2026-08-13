@@ -106,17 +106,20 @@ export async function loadPlanner({ interactive = false } = {}) {
     graphCollection(`/planner/plans/${encodeURIComponent(planId)}/buckets`, token),
     graphCollection(`/planner/plans/${encodeURIComponent(planId)}/tasks`, token),
   ]);
+  const taskDetails = await Promise.allSettled(plannerTasks.map(task => fetchGraphPage(`/planner/tasks/${encodeURIComponent(task.id)}/details`, token)));
   const bucketById = new Map(buckets.map(bucket => [bucket.id, parseBucketName(bucket.name)]));
   const teams = buckets.map(bucket => ({ id: bucket.id, ...parseBucketName(bucket.name) }));
-  const tasks = plannerTasks.map(task => {
+  const tasks = plannerTasks.map((task, index) => {
     const bucket = bucketById.get(task.bucketId) || parseBucketName('Sem bucket');
     const progress = Number(task.percentComplete) || 0;
     const priority = priorityLabel(Number(task.priority));
+    const plannerDetail = taskDetails[index].status === 'fulfilled' ? taskDetails[index].value : {};
+    const checklist = Object.values(plannerDetail.checklist || {}).map(item => ({ title: item.title, completed: Boolean(item.isChecked) }));
     return {
       id: task.id, title: task.title, team: bucket.name,
       start: isoDate(task.startDateTime), end: isoDate(task.dueDateTime),
       status: progress >= 100 ? 'Concluída' : progress > 0 ? 'Em execução' : 'Planejada',
-      progress, priority, highlightedLabel: '',
+      progress, priority, highlightedLabel: '', checklist,
       details: [{ label: 'Bucket no Planner', value: bucket.originalName }, { label: 'Progresso', value: `${progress}%` }, { label: 'Prioridade', value: priority }],
     };
   }).filter(task => task.title);

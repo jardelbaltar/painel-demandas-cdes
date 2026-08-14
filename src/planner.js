@@ -1,5 +1,5 @@
 const tenantId = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'de23d5f0-ccac-4c84-81d6-2892a8c055aa';
-const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'ee2b54f7-4e41-43b3-a4a3-a77280e9acc5';
 const planId = import.meta.env.VITE_PLANNER_PLAN_ID || '_IFjpmPlW02Q7eVsII-VQmQADmgL';
 const scopes = ['openid', 'profile', 'offline_access', 'User.Read', 'Tasks.Read', 'Group.Read.All'];
 const cacheKey = 'cdes-planner-auth';

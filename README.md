@@ -9,12 +9,14 @@ O painel tenta reutilizar silenciosamente a sessão Microsoft do usuário. Quand
 Crie um registro de aplicativo do tipo **Single-page application (SPA)** no Microsoft Entra ID, cadastre as URLs de produção e desenvolvimento como redirect URIs e conceda as permissões delegadas Microsoft Graph `User.Read`, `Tasks.Read` e `Group.Read.All`. Depois, configure no ambiente de build:
 
 ```env
-VITE_MICROSOFT_CLIENT_ID=id-do-aplicativo
+VITE_MICROSOFT_CLIENT_ID=ee2b54f7-4e41-43b3-a4a3-a77280e9acc5
 VITE_MICROSOFT_TENANT_ID=de23d5f0-ccac-4c84-81d6-2892a8c055aa
 VITE_PLANNER_PLAN_ID=_IFjpmPlW02Q7eVsII-VQmQADmgL
 ```
 
 Não configure client secret: a autenticação SPA usa as credenciais e permissões do próprio usuário com Authorization Code + PKCE. Variáveis `VITE_*` são públicas no bundle e devem conter apenas identificadores não secretos.
+
+O Object ID (`d76731bb-4da7-4757-a0de-da60b3300ddc`) identifica o objeto do registro dentro do Entra ID e não é necessário na configuração OAuth do painel.
 
 Buckets com o padrão `Nome do time - N`, por exemplo `Julgamento - 3`, são apresentados como time **Julgamento** com **3 desenvolvedores**.
 

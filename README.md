@@ -19,6 +19,7 @@ Não configure client secret: a autenticação SPA usa as credenciais e permiss�
 O Object ID (`d76731bb-4da7-4757-a0de-da60b3300ddc`) identifica o objeto do registro dentro do Entra ID e não é necessário na configuração OAuth do painel.
 
 Buckets com o padrão `Nome do time - N`, por exemplo `Julgamento - 3`, são apresentados como time **Julgamento** com **3 desenvolvedores**.
+Ao sincronizar, os buckets são exibidos conforme a ordem definida no Planner (campo `orderHint`), preservando a mesma sequência encontrada na exportação da planilha.
 
 ## Publicar o painel
 

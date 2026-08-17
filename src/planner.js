@@ -1,3 +1,5 @@
+import { orderPlannerBuckets } from './planner-order.js';
+
 const tenantId = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'de23d5f0-ccac-4c84-81d6-2892a8c055aa';
 const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'ee2b54f7-4e41-43b3-a4a3-a77280e9acc5';
 const planId = import.meta.env.VITE_PLANNER_PLAN_ID || '_IFjpmPlW02Q7eVsII-VQmQADmgL';
@@ -106,9 +108,10 @@ export async function loadPlanner({ interactive = false } = {}) {
     graphCollection(`/planner/plans/${encodeURIComponent(planId)}/buckets`, token),
     graphCollection(`/planner/plans/${encodeURIComponent(planId)}/tasks`, token),
   ]);
+  const orderedBuckets = orderPlannerBuckets(buckets);
   const taskDetails = await Promise.allSettled(plannerTasks.map(task => fetchGraphPage(`/planner/tasks/${encodeURIComponent(task.id)}/details`, token)));
-  const bucketById = new Map(buckets.map(bucket => [bucket.id, parseBucketName(bucket.name)]));
-  const teams = buckets.map(bucket => ({ id: bucket.id, ...parseBucketName(bucket.name) }));
+  const bucketById = new Map(orderedBuckets.map(bucket => [bucket.id, parseBucketName(bucket.name)]));
+  const teams = orderedBuckets.map(bucket => ({ id: bucket.id, ...parseBucketName(bucket.name) }));
   const tasks = plannerTasks.map((task, index) => {
     const bucket = bucketById.get(task.bucketId) || parseBucketName('Sem bucket');
     const progress = Number(task.percentComplete) || 0;

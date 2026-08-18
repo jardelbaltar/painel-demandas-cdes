@@ -159,7 +159,6 @@ function App() {
   const [dataSource, setDataSource] = useState({ type: 'loading', label: 'Carregando dados…', detail: '' });
   const [syncing, setSyncing] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const input = useRef();
   const applyWorkbook = (buffer, fileName) => {
     const data = parseWorkbook(buffer);
     if (!data.tasks.length) throw new Error('Nenhuma demanda encontrada');
@@ -202,13 +201,12 @@ function App() {
     ['Atrasadas', filtered.filter(isLate).length, AlertTriangle, 'red'],
     ['Planejadas', filtered.filter(t=>t.status==='Planejada'&&!isLate(t)).length, Clock3, 'amber'],
   ];
-  const load = async e => { const file=e.target.files?.[0]; if(!file)return; try { applyWorkbook(await file.arrayBuffer(), file.name); } catch(err) { alert(`Não foi possível ler a planilha: ${err.message}`); } e.target.value=''; };
   const clear = () => { setQuery(''); setStatus('Todos'); setTeam('Todos'); };
   const visibleTeams = teams.filter(t => team === 'Todos' || t.name === team).filter(t => filtered.some(d => d.team === t.name));
   return <div className="app">
-    <header><div className="brand"><div className="brand-mark"><BarChart3/></div><div><strong>CDES</strong><span>Painel de Demandas</span></div></div><div className="header-right"><button className="sync-button" onClick={()=>syncPlanner(true)} disabled={syncing || !isPlannerConfigured()}>{syncing ? <RefreshCw className="spinning" size={17}/> : <LogIn size={17}/>} {syncing ? 'Sincronizando…' : 'Conectar ao Planner'}</button><button className="import" onClick={()=>input.current.click()}><FileSpreadsheet size={17}/> Importar Excel</button><input ref={input} type="file" accept=".xlsx,.xls" hidden onChange={load}/><div className="avatar">GE</div></div></header>
+    <header><div className="brand"><div className="brand-mark"><BarChart3/></div><div><strong>CDES</strong><span>Painel de Demandas</span></div></div><div className="header-right"><button className="sync-button" onClick={()=>syncPlanner(true)} disabled={syncing || !isPlannerConfigured()}>{syncing ? <RefreshCw className="spinning" size={17}/> : <LogIn size={17}/>} {syncing ? 'Sincronizando…' : 'Conectar ao Planner'}</button></div></header>
     <main>
-      <section className="hero"><div><div className="eyebrow"><Sparkles size={14}/> VISÃO EXECUTIVA</div><h1>Painel de Demandas</h1><p>Acompanhe o portfólio, identifique riscos e veja a evolução de cada time.</p></div><div className={`source ${dataSource.type}`}><span>Fonte de dados</span><strong>{dataSource.type === 'planner' ? <CircleDot size={16}/> : <FileSpreadsheet size={16}/>} {dataSource.label}</strong>{dataSource.detail && <small>{dataSource.detail}</small>}</div></section>
+      <section className="hero"><div><div className="eyebrow"><Sparkles size={14}/> VISÃO EXECUTIVA</div><h1>Painel de Demandas</h1></div><div className={`source ${dataSource.type}`}><span>Fonte de dados</span><strong>{dataSource.type === 'planner' ? <CircleDot size={16}/> : <FileSpreadsheet size={16}/>} {dataSource.label}</strong>{dataSource.detail && <small>{dataSource.detail}</small>}</div></section>
       <section className="filters">
         <label className="search"><Search size={19}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar por demanda..." />{query&&<button onClick={()=>setQuery('')}><X size={16}/></button>}</label>
         <label><Users size={17}/><select value={team} onChange={e=>setTeam(e.target.value)}><option>Todos</option>{teams.map(t=><option key={t.name}>{t.name}</option>)}</select></label>

@@ -5,7 +5,8 @@ const compareOrderHints = (left, right) => {
   if (!leftHint && !rightHint) return 0;
   if (!leftHint) return 1;
   if (!rightHint) return -1;
-  return leftHint < rightHint ? -1 : leftHint > rightHint ? 1 : 0;
+  // O Planner atribui os maiores orderHints aos buckets mais à esquerda.
+  return leftHint > rightHint ? -1 : leftHint < rightHint ? 1 : 0;
 };
 
 export const orderPlannerBuckets = buckets => buckets

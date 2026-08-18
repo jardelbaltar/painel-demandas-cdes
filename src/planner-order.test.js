@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { orderPlannerBuckets } from './planner-order.js';
 
-test('orders Planner buckets by their orderHint', () => {
+test('orders Planner buckets from left to right by descending orderHint', () => {
   const buckets = [
-    { id: 'third', orderHint: '300' },
-    { id: 'first', orderHint: '100' },
-    { id: 'second', orderHint: '200' },
+    { id: 'ministros', orderHint: '100' },
+    { id: 'julgamento', orderHint: '300' },
+    { id: 'precedentes', orderHint: '200' },
   ];
 
-  assert.deepEqual(orderPlannerBuckets(buckets).map(bucket => bucket.id), ['first', 'second', 'third']);
+  assert.deepEqual(orderPlannerBuckets(buckets).map(bucket => bucket.id), ['julgamento', 'precedentes', 'ministros']);
 });
 
 test('keeps buckets without orderHint stable and places them last', () => {

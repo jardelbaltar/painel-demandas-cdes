@@ -34,8 +34,7 @@ caso a planilha publicada não possa ser carregada.
 
 ## Atualizar a planilha
 
-A planilha `produtos-e-times.xlsx` é lida automaticamente. Se quiser conferir outro
-arquivo sem alterar o publicado, use o botão **Importar Excel**. O painel procura:
+A planilha `produtos-e-times.xlsx` é lida automaticamente. O painel procura:
 
 - uma aba cujo nome contenha `bucket`, usada para obter o nome do time e sua quantidade de desenvolvedores;
 - outra aba com as demandas, contendo colunas equivalentes a título/tarefa, bucket/time, início, conclusão/previsão, status, progresso e prioridade.
